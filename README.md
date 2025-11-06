@@ -1,12 +1,12 @@
 # bot-detection
 
-Client and server bot detection utilities with Express middleware, simple heuristics, and an optional ML scoring hook.
+Zero‑config client bot detector. Import it once, and it sets a cookie `isbot` to `true` (bot) or `false` (human). No server, no telemetry, no configuration required.
 
 ## Features
 
-- Client: user-agent checks, interaction tracking (mouse/keyboard/touch), JS execution proof, timezone, screen, DPR, WebGL vendor/renderer, Canvas hash.
-- Server: Express middleware for heuristic checks (missing headers, headless UA, no interaction), simple rate check, session storage (in-memory), and telemetry endpoint.
-- Optional ML: Pluggable prediction (default tiny logistic regression) using features such as mouse speed/counts, screen, DPR, timezone, JS enablement.
+- One‑liner: just import and it sets `isbot` cookie
+- Heuristics: user agent headless/bot keywords, `navigator.webdriver`, empty languages/plugins
+- Light interaction sampling (2s): if the user interacts, cookie flips to `false`
 
 ## Install
 
@@ -14,214 +14,68 @@ Client and server bot detection utilities with Express middleware, simple heuris
 npm install bot-detection
 ```
 
-## Quick Start
+## Usage (React, Vite, CRA, Next.js client component)
 
-- Client (bundled app)
-
-```ts
-import { initClient, sendTelemetry } from "bot-detection/client";
-
-const { stop } = initClient({
-  sampleMs: 2000,
-  onUpdate(fp) {
-    // Ship signals to your backend for scoring
-    sendTelemetry("/_bot/telemetry", fp);
-  },
-});
-```
-
-- Server (Express)
+- Import once in your client entry or root layout:
 
 ```ts
-import express from "express";
-import cookieParser from "cookie-parser";
-import bodyParser from "body-parser";
-import { server as bot } from "@your-scope/bot-detection";
-
-const app = express();
-app.use(cookieParser());
-app.use(bodyParser.json());
-
-const { middleware, router } = bot.createBotDetector({
-  telemetryPath: "/_bot/telemetry",
-  ml: { enabled: true },
-});
-app.use(middleware);
-app.post("/_bot/telemetry", router);
+import 'bot-detection/auto'; // sets document.cookie isbot=true|false
 ```
 
-## Test environment
-
-- Build and run unit tests (Node built-in runner):
-
-```
-npm test
-```
-
-- Demo Express app:
-  - Build the package: `npm run build`
-  - Install demo deps: `cd examples/express-demo && npm install`
-  - Run the demo: `node ../express-demo/server.js` (from repo root: `npm run demo`)
-  - Open `http://localhost:3000` and interact with the page
-
-## Publishing to npm
-
-1. Set the package name
-
-- Update `name` in `package.json` to your real scope (e.g., `"@acme/bot-detection"`) or unscoped name (e.g., `"bot-detection"`).
-
-2. Build the package
-
-```
-npm run build
-```
-
-3. Login and publish
-
-```
-npm login
-# For scoped packages publish publicly
-npm publish --access public
-# For unscoped packages
-# npm publish
-```
-
-4. Versioning
-
-- Use `npm version patch|minor|major` to bump versions before publishing.
-
-After publishing, consumers can install and use:
-
-```
-npm install @your-scope/bot-detection
-```
-
-## React: one‑liner auto install
-
-- Add this import once in your app layout (Vite/CRA/Next client component):
+- Read the cookie anywhere:
 
 ```ts
-import 'bot-detection/auto';
+function getCookie(name: string) {
+  return document.cookie
+    .split(';')
+    .map(s => s.trim())
+    .find(s => s.startsWith(name + '='))?.split('=')[1];
+}
+
+const isBot = getCookie('isbot') === 'true';
 ```
 
-- Optional: configure before import (telemetry URL, header name, sample rate):
+### React (CRA/Vite) placement
+- CRA: add the import at the top of `src/index.tsx` or `src/index.jsx`.
+- Vite: add the import at the top of `src/main.tsx` or `src/main.jsx`.
+- It must run in the browser; do not import it in Node/server code.
 
-```ts
-// e.g., src/bot-detect.ts (import this early, like in your root layout)
-;(window as any).__BOT_DETECTION__ = {
-  telemetryUrl: '/_bot/telemetry', // your backend endpoint
-  sampleMs: 2000,
-  attachFetch: true,
-  attachXHR: false,
-  headerName: 'x-bot-features',
-};
-import 'bot-detection/auto';
+### Next.js
+- App Router (app/): create a tiny client component and include it in `app/layout.tsx`.
+
+```tsx
+// app/bot-detect-client.tsx
+'use client'
+import 'bot-detection/auto'
+export default function BotDetectClient(){ return null }
 ```
 
-- What it does automatically:
-  - Starts client fingerprint + interaction tracking.
-  - Sends telemetry every `sampleMs` to `telemetryUrl`.
-  - Attaches a base64 telemetry header to all same‑origin `fetch` calls (`x-bot-features`).
-
-Notes for Next.js
-- App Router: create a small `use client` component added to `app/layout.tsx` and import `'bot-detection/auto'` inside it.
-- Pages Router: import `'bot-detection/auto'` in `pages/_app.tsx`.
-
-## Client usage
-
-```ts
-import { initClient, sendTelemetry } from "@your-scope/bot-detection/client";
-
-// Start collecting fingerprint + interactions and periodically update
-const { stop } = initClient({
-  sampleMs: 2000,
-  onUpdate(fp) {
-    // Optionally send to server endpoint
-    sendTelemetry("/_bot/telemetry", fp);
-  },
-});
-
-// Call stop() to remove listeners
+```tsx
+// app/layout.tsx
+import BotDetectClient from './bot-detect-client'
+export default function RootLayout({ children }){
+  return (
+    <html><body>
+      <BotDetectClient />
+      {children}
+    </body></html>
+  )
+}
 ```
 
-If you prefer to control sending, you can call `collectFingerprint` and send data yourself.
-
-## Server usage (Express)
-
-```ts
-import express from "express";
-import cookieParser from "cookie-parser";
-import bodyParser from "body-parser";
-import { server as bot } from "@your-scope/bot-detection";
-
-const app = express();
-app.use(cookieParser());
-app.use(bodyParser.json({ limit: "50kb" }));
-
-const { middleware, router } = bot.createBotDetector({
-  telemetryPath: "/_bot/telemetry",
-  rateLimit: { windowMs: 60_000, max: 120 },
-  ml: { enabled: true },
-});
-
-app.use(middleware);
-app.post("/_bot/telemetry", router); // or: app.use(router) and ensure body json parser runs before
-
-app.get("/protected", (req, res) => {
-  const result = (req as any).botDetection;
-  if (result?.isBot) return res.status(403).send("Bots not allowed");
-  res.send("Hello human");
-});
-
-app.listen(3000);
-```
-
-### Sending features via header instead of body
-
-You can also pass client features in a base64-encoded JSON header and the middleware will consume it:
-
-```ts
-// client side
-import { collectFingerprint } from "@your-scope/bot-detection/client";
-const stop = collectFingerprint({
-  onUpdate(fp) {
-    const hdr = btoa(JSON.stringify(fp));
-    fetch("/protected", { headers: { "x-bot-features": hdr } });
-  },
-});
-```
-
-## Heuristics
-
-- Missing headers: `user-agent`, `accept`, `accept-language` increase risk.
-- Headless UA keywords trigger higher risk.
-- No interaction over time suggests automation.
-- Rate limiting: excessive requests per IP/UA within a window increases risk.
-
-## ML hook
-
-You can inject your own model:
-
-```ts
-import { server as bot } from "@your-scope/bot-detection";
-
-const { middleware } = bot.createBotDetector({
-  ml: {
-    enabled: true,
-    predict: (features) => {
-      // return { score: 0..1, label: 'bot' | 'human' }
-      return { score: Math.random(), label: "human" };
-    },
-  },
-});
-```
-
-## Types
-
-All relevant types are exported from the package root.
+### Troubleshooting
+- Not seeing the `isbot` cookie:
+  - Ensure the import runs on the client (open DevTools Console and run `document.cookie`).
+  - Disable strict privacy/extensions that block cookies for `localhost`.
+  - The cookie is not HttpOnly; check DevTools → Application → Cookies.
+  - Wait ~2 seconds after page load; interaction sampling may flip it to `false`.
+- Seeing `POST /api/bot/telemetry 404` in your dev server:
+  - That means you are using an older version of this package that sent telemetry.
+  - Update to the latest version with zero telemetry: `npm i bot-detection@latest`.
+  - Also remove any older setup that sets `window.__BOT_DETECTION__` or manually posts to `/api/bot/telemetry`.
 
 ## Notes
 
-- The in-memory session store is suitable for single-instance demos. Use a distributed store for production.
-- The default ML is intentionally simple and acts as a placeholder.
-- For best results, mount `cookie-parser` and `body-parser` before the middleware/router.
+- Cookie name: `isbot`, value `'true' | 'false'`
+- Detection runs immediately; after ~2 seconds, if user interacts (mouse/keys/touch), cookie is forced to `'false'`
+- Import only on the client (e.g., within a Next.js client component)

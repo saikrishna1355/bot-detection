@@ -1,11 +1,3 @@
-type AutoOptions = {
-    telemetryUrl?: string;
-    sampleMs?: number;
-    attachFetch?: boolean;
-    attachXHR?: boolean;
-    headerName?: string;
-};
-export declare function initAuto(options?: AutoOptions): {
+export declare function initAuto(): {
     stop(): void;
 };
-export {};

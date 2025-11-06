@@ -9,9 +9,9 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "types": ["node"],
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src/**/*"]
 }
-
