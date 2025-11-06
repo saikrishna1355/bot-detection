@@ -79,3 +79,16 @@ export default function RootLayout({ children }){
 - Cookie name: `isbot`, value `'true' | 'false'`
 - Detection runs immediately; after ~2 seconds, if user interacts (mouse/keys/touch), cookie is forced to `'false'`
 - Import only on the client (e.g., within a Next.js client component)
+
+### Limitations (and what we check)
+- Heuristics are lightweight and can be bypassed by sophisticated bots.
+- Legit environments (privacy modes) can trigger signals; we keep their weights small.
+- Signals used:
+  - User‑Agent headless/automation keywords
+  - `navigator.webdriver`
+  - Empty `navigator.languages` / `navigator.plugins`
+  - UA mobile vs `maxTouchPoints` mismatch (small weight)
+  - `hardwareConcurrency <= 1` (small weight)
+  - Chrome UA without `window.chrome` (small weight)
+  - `devicePixelRatio === 1` with very large width (tiny weight)
+- Treat it as a quick client hint, not a sole security control.
