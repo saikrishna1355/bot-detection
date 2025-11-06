@@ -96,6 +96,37 @@ After publishing, consumers can install and use:
 npm install @your-scope/bot-detection
 ```
 
+## React: one‑liner auto install
+
+- Add this import once in your app layout (Vite/CRA/Next client component):
+
+```ts
+import 'bot-detection/auto';
+```
+
+- Optional: configure before import (telemetry URL, header name, sample rate):
+
+```ts
+// e.g., src/bot-detect.ts (import this early, like in your root layout)
+;(window as any).__BOT_DETECTION__ = {
+  telemetryUrl: '/_bot/telemetry', // your backend endpoint
+  sampleMs: 2000,
+  attachFetch: true,
+  attachXHR: false,
+  headerName: 'x-bot-features',
+};
+import 'bot-detection/auto';
+```
+
+- What it does automatically:
+  - Starts client fingerprint + interaction tracking.
+  - Sends telemetry every `sampleMs` to `telemetryUrl`.
+  - Attaches a base64 telemetry header to all same‑origin `fetch` calls (`x-bot-features`).
+
+Notes for Next.js
+- App Router: create a small `use client` component added to `app/layout.tsx` and import `'bot-detection/auto'` inside it.
+- Pages Router: import `'bot-detection/auto'` in `pages/_app.tsx`.
+
 ## Client usage
 
 ```ts

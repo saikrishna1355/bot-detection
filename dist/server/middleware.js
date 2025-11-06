@@ -122,6 +122,18 @@ function createBotDetector(options = {}) {
         const session = store.upsert({ id: sid, ip, ua: String(req.headers['user-agent'] || ''), heuristic, ml: mlRes });
         req.botDetection = { isBot, score: Math.max(heuristic.score, (_g = mlRes === null || mlRes === void 0 ? void 0 : mlRes.score) !== null && _g !== void 0 ? _g : 0), heuristic, ml: mlRes, sessionId: session.id };
         res.locals.bot = req.botDetection;
+        // Expose simple headers for client-side inspection if desired
+        try {
+            if (typeof res.setHeader === 'function') {
+                res.setHeader('x-bot-score', combinedScore.toFixed(3));
+                res.setHeader('x-bot', isBot ? '1' : '0');
+            }
+            else if (typeof res.set === 'function') {
+                res.set('x-bot-score', combinedScore.toFixed(3));
+                res.set('x-bot', isBot ? '1' : '0');
+            }
+        }
+        catch { }
         next();
     }
     // Minimal router to receive telemetry and expose prediction API

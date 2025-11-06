@@ -131,6 +131,16 @@ export function createBotDetector(options: MiddlewareOptions = {}) {
 
     req.botDetection = { isBot, score: Math.max(heuristic.score, mlRes?.score ?? 0), heuristic, ml: mlRes, sessionId: session.id };
     res.locals.bot = req.botDetection;
+    // Expose simple headers for client-side inspection if desired
+    try {
+      if (typeof (res as any).setHeader === 'function') {
+        (res as any).setHeader('x-bot-score', combinedScore.toFixed(3));
+        (res as any).setHeader('x-bot', isBot ? '1' : '0');
+      } else if (typeof (res as any).set === 'function') {
+        (res as any).set('x-bot-score', combinedScore.toFixed(3));
+        (res as any).set('x-bot', isBot ? '1' : '0');
+      }
+    } catch {}
     next();
   }
 

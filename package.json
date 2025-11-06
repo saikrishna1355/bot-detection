@@ -1,6 +1,6 @@
 {
   "name": "bot-detection",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Client and server bot detection utilities with Express middleware and optional ML scoring.",
   "license": "MIT",
   "type": "commonjs",
@@ -22,6 +22,11 @@
       "types": "./dist/server/index.d.ts",
       "require": "./dist/server/index.js",
       "default": "./dist/server/index.js"
+    },
+    "./auto": {
+      "types": "./dist/client/auto.d.ts",
+      "require": "./dist/client/auto.js",
+      "default": "./dist/client/auto.js"
     }
   },
   "scripts": {
