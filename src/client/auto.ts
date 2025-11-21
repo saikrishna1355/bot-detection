@@ -1,12 +1,31 @@
 // Minimal, zero-config bot detection that sets a cookie `isbot`
 // to 'true' or 'false'. Importing this file runs detection automatically.
 
+type Config = { strict?: boolean; threshold?: number; debug?: boolean; refreshMs?: number; cookieDays?: number };
+function getConfig(): Config {
+  try { return ((window as any).__BOT_DETECTION__ || {}) as Config; } catch { return {}; }
+}
+
 function setCookie(name: string, value: string, days = 7) {
   try {
     const d = new Date();
     d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
     document.cookie = `${name}=${value}; expires=${d.toUTCString()}; path=/; samesite=lax`;
   } catch {}
+}
+
+function getCookie(name: string): string | undefined {
+  try {
+    const target = `${name}=`;
+    const parts = (document.cookie || '').split(';');
+    for (const p of parts) {
+      const part = p.trim();
+      if (part.startsWith(target)) {
+        return part.slice(target.length);
+      }
+    }
+  } catch {}
+  return undefined;
 }
 
 function getUA() { try { return navigator.userAgent || ''; } catch { return ''; } }
@@ -108,18 +127,32 @@ async function asyncTightenIfNeeded(initialScore: number) {
 export function initAuto() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return { stop() {} };
 
-  // Immediate heuristic
-  const h = basicHeuristic();
-  const artifacts = detectAutomationArtifacts();
-  let score = h.score + (artifacts.hit ? 0.6 : 0);
-  if (artifacts.hit) {
-    // Cap to 1
-    score = Math.min(1, score);
-  }
-  let isBot = score >= 0.6;
-  setCookie('isbot', isBot ? 'true' : 'false');
-  // Async tighten based on early permission denials
-  asyncTightenIfNeeded(score);
+  const cfg = getConfig();
+  let lastScore = 0;
+  const cookieDays = typeof cfg.cookieDays === 'number' ? cfg.cookieDays : undefined;
+  const runDetection = () => {
+    const h = basicHeuristic();
+    const artifacts = detectAutomationArtifacts();
+    let score = h.score + (artifacts.hit ? 0.6 : 0);
+    if (artifacts.hit) {
+      // Cap to 1
+      score = Math.min(1, score);
+    }
+    const threshold = typeof cfg.threshold === 'number' ? cfg.threshold : (cfg.strict ? 0.5 : 0.6);
+    const isBot = score >= threshold;
+    const value = isBot ? 'true' : 'false';
+    setCookie('isbot', value, cookieDays);
+    lastScore = score;
+    // Async tighten based on early permission denials
+    asyncTightenIfNeeded(score);
+
+    if (cfg.debug && typeof console !== 'undefined') {
+      try { console.debug('[bot-detection] score=', score.toFixed(3), 'threshold=', threshold, 'reasons=', h.reasons.concat(artifacts.reasons || [])); } catch {}
+    }
+    return value;
+  };
+
+  let lastSetValue = runDetection();
 
   // Light interaction sampling (~2s) to downgrade to human if activity is seen
   let mouseMoves = 0, keyPresses = 0, touchEvents = 0;
@@ -135,16 +168,31 @@ export function initAuto() {
     window.removeEventListener('keydown', onKey);
     window.removeEventListener('touchstart', onTouch);
     const interacted = mouseMoves > 0 || keyPresses > 0 || touchEvents > 0;
-    const strongSuspect = score >= 0.85;
+    const strongSuspect = lastScore >= (cfg.strict ? 0.75 : 0.85);
     // For strong suspicion, require more convincing interaction to flip
-    const strongInteraction = mouseMoves >= 5 || keyPresses >= 2 || touchEvents >= 1;
+    const strongInteraction = mouseMoves >= (cfg.strict ? 10 : 5) || keyPresses >= (cfg.strict ? 3 : 2) || touchEvents >= 1;
     if (interacted && (!strongSuspect || strongInteraction)) {
       // Interaction suggests a human
-      setCookie('isbot', 'false');
+      setCookie('isbot', 'false', cookieDays);
+      lastSetValue = 'false';
     }
   }, document.hidden ? waitMs + 800 : waitMs);
 
-  return { stop() { try { clearTimeout(timer); } catch {} } };
+  const refreshMsRaw = typeof cfg.refreshMs === 'number' ? cfg.refreshMs : 30000;
+  const refreshMs = refreshMsRaw > 0 ? refreshMsRaw : 0;
+  const refreshTimer = refreshMs ? window.setInterval(() => {
+    try {
+      const current = getCookie('isbot');
+      if (current !== lastSetValue) {
+        lastSetValue = runDetection();
+      } else {
+        // Refresh the expiry so manual deletions or stale cookies get corrected quickly
+        setCookie('isbot', lastSetValue, cookieDays);
+      }
+    } catch {}
+  }, refreshMs) : undefined;
+
+  return { stop() { try { clearTimeout(timer); } catch {} try { if (refreshTimer) clearInterval(refreshTimer); } catch {} } };
 }
 
 // Auto-run

@@ -35,6 +35,18 @@ function getCookie(name: string) {
 const isBot = getCookie('isbot') === 'true';
 ```
 
+- Optional: stricter detection or debug logging (set before import):
+
+```ts
+;(window as any).__BOT_DETECTION__ = {
+  // Lower the threshold and raise flip requirements
+  strict: true,          // default false
+  threshold: 0.5,        // default 0.6 (0..1)
+  debug: true,           // logs score and reasons to console
+};
+import 'bot-detection/auto';
+```
+
 ### React (CRA/Vite) placement
 - CRA: add the import at the top of `src/index.tsx` or `src/index.jsx`.
 - Vite: add the import at the top of `src/main.tsx` or `src/main.jsx`.
@@ -92,3 +104,8 @@ export default function RootLayout({ children }){
   - Chrome UA without `window.chrome` (small weight)
   - `devicePixelRatio === 1` with very large width (tiny weight)
 - Treat it as a quick client hint, not a sole security control.
+
+### Why a proxied Chromium (e.g., via Burp) may read as human
+- Proxies operate at the network layer; client‑side heuristics only see browser APIs and behavior.
+- To treat such traffic as bots client‑side, enable `strict` and lower `threshold`, but expect more false positives.
+- For robust proxy detection, add server‑side checks (TLS/JA3, header anomalies, IP reputation) in your app.

@@ -1,6 +1,6 @@
 {
   "name": "bot-detection",
-  "version": "0.2.1",
+  "version": "0.2.4",
   "description": "Zero‑config client bot detector that sets an 'isbot' cookie.",
   "license": "MIT",
   "type": "commonjs",
@@ -39,6 +39,7 @@
     "access": "public"
   },
   "devDependencies": {
+    "@types/node": "^24.10.1",
     "typescript": "^5.3.3"
   }
 }
